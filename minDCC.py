@@ -42,7 +42,7 @@ class minDCC:
 
     
     @staticmethod
-    def validate_signature(commitment_values: list, identity_attributes: set[Identity_Attribute], owner_public_key: Public_Key, issuer_signature: Issuer_Signature, producer_signature: Signature):
+    def validate_signatures(commitment_values: list, identity_attributes: set[Identity_Attribute], owner_public_key: Public_Key, issuer_signature: Issuer_Signature, producer_signature: Signature):
         data_to_validate = (
             "".join(commitment_value for commitment_value in commitment_values)
             .join(identity_attribute for identity_attribute in identity_attributes)
@@ -62,11 +62,13 @@ class minDCC:
 
     def __repr__(self):
         # Convert identity attributes to a list of dictionaries
-        attributes = [
-            {"label": attr.label, "value": attr.value, "commitment_value": attr.commitment_value}
-            for attr in self.identity_attributes
-        ]
-
+        attributes = dict()
+        for attr in self.identity_attributes:
+            attributes[attr.label] = {
+                "value": attr.value,
+                "mask": attr._pseudo_random_mask,
+            }
+        
         return json.dumps({
             "commitment_values": self.commitment_values,
             "attributes_digest_description": self.attributes_digest_description,

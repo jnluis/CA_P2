@@ -3,19 +3,46 @@ from PyKCS11.LowLevel import *
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography import x509
-from cryptography.x509.oid import ExtensionOID
 from cryptography.hazmat.primitives . serialization import load_der_public_key
 from cryptography.hazmat.primitives . asymmetric import (
 padding , rsa , utils
 )
 import socket
+from datetime import datetime, timezone
+from pyasn1.codec.der.decoder import decode
+from pyasn1.type.univ import Sequence
+import json
 
 lib = '/usr/local/lib/libpteidpkcs11.so'
 pkcs11 = PyKCS11.PyKCS11Lib()
 pkcs11.load(lib)
 slots = pkcs11.getSlotList()
 
+def get_birth_date_from_extension(extension):
+    try:
+        decoded_value, _ = decode(extension)
+        for seq in decoded_value:
+            if isinstance(seq, Sequence):
+                oid = str(seq[0])  # Extract the OID
+                if oid == "1.3.6.1.5.5.7.9.1":  # Birth Date OID
+                    # Extract the associated value
+                    birth_date_raw = seq[1][0]  # Get the SetOf value
+                    birth_date_str = birth_date_raw.asOctets().decode()  # Convert to string
+                    
+                    # Convert the string to a datetime object
+                    birth_date = datetime.strptime(birth_date_str, "%Y%m%d%H%M%SZ")
+                    
+                    # Set timezone to UTC (as 'Z' in the string indicates UTC)
+                    birth_date = birth_date.replace(tzinfo=timezone.utc)
+                    
+                    return birth_date
+        return None 
+    except Exception as e:
+        print(f"Error decoding subjectDirectoryAttributes: {e}")
+        return None
+
 def loadCC_and_sign():
+    attributes = {} 
     for slot in slots :
         if 'CARTAO DE CIDADAO' in pkcs11.getTokenInfo(slot).label:
             session = pkcs11.openSession(slot)
@@ -37,22 +64,23 @@ def loadCC_and_sign():
 
             # Extract personal details from the certificate subject
             subject = certificate.subject
-            for attr in subject:
-                print(f"OID: {attr.oid}, Value: {attr.value}")
+            for ex in certificate.extensions:
+                oid = ex.oid.dotted_string
+                if oid == "2.5.29.9":  # subjectDirectoryAttributes OID
+                   birth_date = get_birth_date_from_extension(ex.value.value) 
 
-            extension= certificate.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS)
-            print(f"Extension: {extension}")
             name = subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value
-            serial_number = certificate.serial_number
-            birth_date = subject.get_attributes_for_oid(x509.NameOID.GIVEN_NAME)[0].value  # May vary by country
+            serial_number = subject.get_attributes_for_oid(x509.NameOID.SERIAL_NUMBER)[0].value
+            country = subject.get_attributes_for_oid(x509.NameOID.COUNTRY_NAME)[0].value
+
+            attributes['birth_date'] = birth_date.isoformat() 
+            attributes['name'] = name
+            attributes['serial_number'] = serial_number
+            attributes['country'] = country
 
             pubKeyDer = session.getAttributeValue(pubKey, [CKA_VALUE], True)[0]
             pubKeyBytes = bytes(pubKeyDer)  # Convert to bytes
 
-            print(f"Name: {name}")
-            print(f"Serial number: {serial_number}")
-            print(f"Birth date: {birth_date}")
-            attributes= ""
             session.closeSession
             return pubKeyBytes, attributes
 
@@ -71,15 +99,23 @@ def verify_signature(signature):
         except:
             print('Verification failed')   
 
-def send_signed_data(signature):
+def send_signed_data(pubKeyBytes, attributes, password):
     HOST = '127.0.0.1'  # Server address
     PORT = 65432        # Server port
+
+    data = {
+        "attributes": attributes,
+        "password": password,
+        "public_key": pubKeyBytes.hex()  # Convert binary to hexadecimal string
+    }
+
+    json_data = json.dumps(data)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
         client_socket.connect((HOST, PORT))  # Connect to the server
 
         # Send signed data
-        client_socket.sendall(signature)
+        client_socket.sendall(json_data.encode('utf-8'))
         print("Signed data sent successfully.")
 
         # Wait for response from server
@@ -104,7 +140,7 @@ def main():
             pubKeyBytes, attributes =loadCC_and_sign()
 
             # if para se for um gen ou um gen_min
-            send_signed_data(pubKeyBytes)
+            send_signed_data(pubKeyBytes, attributes, password)
             #verify_signature(signature)
         elif choice == '3':
             break

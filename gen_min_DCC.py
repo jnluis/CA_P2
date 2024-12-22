@@ -1,3 +1,7 @@
+import argparse
+import json
+from minDCC import minDCC
+from DCC import generate_identity_attributes
 
 example_dcc = {
   "identity_attributes": [
@@ -24,3 +28,55 @@ example_dcc = {
     "issuer_certificate": "-----BEGIN CERTIFICATE-----\nMIIFQjCCAyqgAwIBAgIUSYVKzJKCYK0W8oB4jroaNuzcjTMwDQYJKoZIhvcNAQEL\nBQAwWzELMAkGA1UEBhMCUFQxDzANBgNVBAgMBkF2ZWlybzERMA8GA1UEBwwIRXNn\ndWVpcmExEjAQBgNVBAoMCUNBX0lTU1VFUjEUMBIGA1UEAwwLZXhhbXBsZS5jb20w\nHhcNMjQxMjIyMTczNTEyWhcNMjUwMTAxMTczNTEyWjBbMQswCQYDVQQGEwJQVDEP\nMA0GA1UECAwGQXZlaXJvMREwDwYDVQQHDAhFc2d1ZWlyYTESMBAGA1UECgwJQ0Ff\nSVNTVUVSMRQwEgYDVQQDDAtleGFtcGxlLmNvbTCCAiIwDQYJKoZIhvcNAQEBBQAD\nggIPADCCAgoCggIBALyXM+YlvCirEpIeGqzQfoKF0nt0hLl9EwENW9KXl9woyZ81\neIwBr1c1SP7O4OBcghP3+Aih+fLBr4uFoAvESSqTGoCLYjW5vfR/Gau1ubhtxnPn\n6vjEQ2G5V4yMTjt7NHGm6esmSEyuH0G4wy9WsUg5QVGBGb4iGQ4s2TZKrUJtt00+\nKgGflwlOko3+nwe+h5ovyi3VZF91FqszCPk+aFkI4AANYHVuHXVS6Lq28uqF6ccN\nqDn350ecb84k0Yv0GCXNWA6kSM8ZDehaHyCt46tnIIaYJ9Ebv8HDfX8XY1FtXe5e\nAWa+CARc+YWecH6HOzJRIyMVWcYaF2c8hQi72KhVv1GkK+pmCTgZGMZlH9vYGQ0w\nFsPj4QoLaNWOj8CyUhUhPK87jFuf39rS1okCsuJCgKiTLBYABeguUTtWdfWh+mY7\n5CfKazkiGufVmO5LnNz1+N4H8FN+AWpXngB9XirOvy502Oqte3QW06D5qaaX1Xtr\nHqwRSx2o9hmetOmgCJY2K6EREqCgyp3nT1cDEthDEwMpFXbPeYwhZFdvLRhoQIbO\nUoxHP9WResd8LYutsZ3xkgK3jJvokhlVzO+JtOFqgFUJIZ4nqz3zvQFuxdf09yye\nQqSEehpik9wriBcQPA1yvdlK1/xkOv47uHuVXTqYry/9egSiD57YOfhDggRFAgMB\nAAEwDQYJKoZIhvcNAQELBQADggIBAH0wxuUsWK5+ztu64HTgeof9S8I41jovE7DB\nHuJtuRlQLLqBUSVkfEAyRGXC7rs4dTq2fcsNYlO6BlVcHKjPvT/NUwCc9xUE59d6\nNuMypOpQ8qTzLy/Ewy9uP+Zn7Zl8LFm9SPmX2O/Sj8OzYxVv9bdAHevJP794jdx+\nrhHzVvT+lb6E69QaEbs+hr1l49xxWGhxkmQmDqM3zBdt8liy8zGDkQlFfVZBrlJR\nkIlqaJ4og+FilBIdLtg5F8Ozt79LpZ46HskiFVJepUj8Ap5Vd52BnSRaGWDuytMh\n5k52XL3C9uNt/fcMf0/rY/jhgUaNZd4hu9NMcBiqpb3HdsnzDwI0BVXLFs0xvkiC\nciupdQk8I9+6tVyPhsf6swneUe/r5xXFVunKKnxdJ9OHx65KguPrTIu+s+qWtCa1\ndC8hKXfq8p6lJaLaRLS7mpR0i0d30LIhEJuFn+hE9LlMZvSKE4tMZzZj4gU5CVai\nXp+A93fJ913EumtMKvCv0tz8wNT3x3ROLGyjG8WLEDDlvn90BJfSHmb2mPsrR7Vc\nal5KkUE8euXUw4Qx7C6sko8ft9PG0srGiyhLim1SbxEyn/3kXxrnPHR8AEnoGf5a\nexXTNg8SHuwK/WYGp8IDqdrJ9RhM09zBeKZTE1EeS4RS2U7R0apnelqMbxv4hlPK\nogvNDkxw\n-----END CERTIFICATE-----\n"
   }
 }
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("dcc_path", type=str)
+    parser.add_argument("private_key_path", type=str)
+
+    args = parser.parse_args()
+
+    try:
+        with open(args.dcc_path, "r") as dcc_file:
+            example_dcc = json.load(dcc_file)
+    except Exception as e:
+        print(f"Error loading DCC document: {e}")
+        return
+
+    try:
+        with open(args.private_key_path, "r") as key_file:
+            private_key = key_file.read()
+    except Exception as e:
+        print(f"Error loading private key: {e}")
+        return
+
+    try:
+
+      commitment_values = [attr["commitment_value"] for attr in example_dcc["identity_attributes"]]
+      digest_description = example_dcc["attributes_digest_description"]
+      owner_public_key = example_dcc["owner_public_key"]
+      issuer_signature = example_dcc["issuer_signature"]
+
+      name_attribute = example_dcc["identity_attributes"][0]
+      revealed_attributes = dict()
+      revealed_attributes[name_attribute["label"]] = name_attribute["value"]
+
+      password = input("Password: ")
+      identity_attributes = generate_identity_attributes(password, revealed_attributes)
+
+      min_dcc = minDCC(
+          commitment_values=commitment_values,
+          attributes_digest_description=digest_description,
+          owner_public_key=owner_public_key,
+          issuer_signature=issuer_signature,
+          identity_attributes=identity_attributes
+      )
+
+      print(min_dcc)
+    
+    except Exception as e:
+        print(f"Error generating minDCC: {e}")
+
+if __name__ == "__main__":
+  main()
