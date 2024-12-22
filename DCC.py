@@ -1,34 +1,44 @@
 from dataclasses import dataclass, field, asdict
-from cryptography.hazmat.primitives.hashes import Hash, SHA384
+from cryptography.hazmat.primitives.hashes import Hash, SHA384, SHA3_512
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
 from cryptography.hazmat.primitives import serialization
 import json
 import datetime
+from typing import Iterable
+
 
 @dataclass(frozen=True)
 class Identity_Attribute:
     _password: str = field(repr=False, compare=False)
+    _pseudo_random_mask: str = field(init=False)
     label: str = ""
     value: str = ""
     commitment_value: str = field(init=False)
 
     def __post_init__(self):
-        hash = Hash(SHA384())
+        hash = Hash(SHA3_512())
         hash.update((self.label + self._password).encode())
-        pseudo_random_mask = hash.finalize()
+        object.__setattr__(self, '_pseudo_random_mask', hash.finalize().hex())
 
         hash = Hash(SHA384())
-        hash.update(self.label.encode() + self.value.encode() + pseudo_random_mask)
+        hash.update((self.label + self.value + self._pseudo_random_mask).encode())
         object.__setattr__(self, 'commitment_value', hash.finalize().hex())
 
     def __hash__(self):
         return hash((self.label, self.value))
 
+def generate_identity_attributes(password: str, attributes: dict[str, str]) -> set[Identity_Attribute]:
+    identity_attributes = set()
+    for label, value in attributes.items():
+        identity_attributes.add(Identity_Attribute(password, label, value))
+    return identity_attributes
+
 @dataclass
 class Public_Key:
-    key: RSAPublicKey = None
-    algorithm: str = "RSA"
+    key: Ed448PublicKey = None
+    algorithm: str = "Ed448"
 
     def to_pem(self):
         return self.key.public_bytes(
@@ -37,16 +47,19 @@ class Public_Key:
         )
 
 @dataclass
-class Issuer_Signature:
+class Signature:
     signature_value: str = ""
     timestamp: str = ""
-    algorithm: str = "RSA"
+    algorithm: str = "Ed448"
+
+@dataclass
+class Issuer_Signature(Signature):
     issuer_certificate: str = ""
 
 @dataclass
 class DCC:
-    identity_attributes: set = field(default_factory=set())
-    attributes_digest_description: str = "SHA-384 for pseudo-random mask and SHA-384 for commitment value"
+    identity_attributes: set[Identity_Attribute] = field(default_factory=set[Identity_Attribute])
+    attributes_digest_description: str = "SHA-3_512 for pseudo-random mask and SHA-384 for commitment value"
     owner_public_key: Public_Key = field(default_factory=Public_Key)
     issuer_private_key: RSAPrivateKey = None
     issuer_certificate: str = ""
@@ -107,24 +120,25 @@ class DCC:
 
         self.issuer_signature = Issuer_Signature(
             signature_value=signature.hex(),
-            timestamp=datetime.datetime.utcnow().isoformat(),
-            algorithm="RSA-2048",
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            algorithm="Ed448",
             issuer_certificate=self.issuer_certificate
         )
 
-    def validate_signature(self):
+    @staticmethod
+    def validate_signature(owner_public_key: Ed448PublicKey, issuer_signature: Issuer_Signature, commitment_values: Iterable[str]):
         """
         Validate the signature over the commitment values and public key.
         :return: True if valid, False otherwise.
         """
         data_to_validate = (
-            "".join(attr.commitment_value for attr in self.identity_attributes) +
-            self.owner_public_key.to_pem().decode()
+            "".join(commitment_values) +
+            owner_public_key.to_pem().decode()
         ).encode()
 
         try:
-            self.owner_public_key.key.verify(
-                bytes.fromhex(self.issuer_signature.signature_value),
+            owner_public_key.key.verify(
+                bytes.fromhex(issuer_signature.signature_value),
                 data_to_validate,
                 padding.PSS(
                     mgf=padding.MGF1(SHA384()),
@@ -155,3 +169,4 @@ class DCC:
             },
             "issuer_signature": asdict(self.issuer_signature),
         }, indent=2)
+

@@ -1,29 +1,3 @@
-# from PyKCS11 import *
-# from PyKCS11.LowLevel import *
-
-# lib = '/usr/local/lib/libpteidpkcs11.so'
-
-# pkcs11 = PyKCS11.PyKCS11Lib()
-# pkcs11.load(lib)
-# slots = pkcs11.getSlotList()
-
-# classes = {
-#     CKO_PRIVATE_KEY : 'private key' ,
-#     CKO_PUBLIC_KEY : 'public key' ,
-#     CKO_CERTIFICATE : 'certificate'
-# }
-
-# for slot in slots :
-#     if 'CARTAO DE CIDADAO' in pkcs11.getTokenInfo(slot).label:
-#         session = pkcs11.openSession(slot)
-#         objects = session.findObjects()
-#         for obj in objects:
-#             l = session.getAttributeValue(obj, [CKA_LABEL])[0]
-#             c = session.getAttributeValue(obj, [CKA_CLASS])[0]
-#             value = session.getAttributeValue(obj, [CKA_VALUE])[0]
-#             print('Object with label ' + l + ', of class' + classes[c])
-#             print('Value:', value)
-
 from DCC import *
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
@@ -31,9 +5,10 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 import datetime
+import socket
 
 issuer_private_key = None  # Global variable to hold the issuer's private key
-
+RSA_KEY_SIZE = 4096  # Size of the RSA key pair
 
 def generate_issuer_certificate():
     """
@@ -43,7 +18,7 @@ def generate_issuer_certificate():
     global issuer_private_key
     issuer_private_key = rsa.generate_private_key(
         public_exponent=65537,
-        key_size=2048,
+        key_size=4096,
     )
     public_key = issuer_private_key.public_key()
 
@@ -75,11 +50,36 @@ def generate_issuer_certificate():
     with open("issuer_certificate.pem", "wb") as f:
         f.write(cert.public_bytes(serialization.Encoding.PEM))
 
+def start_server():
+    HOST = '127.0.0.1'  # Localhost
+    PORT = 65432        # Port to listen on
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((HOST, PORT))
+        server_socket.listen()
+        print("Server is listening...")
+
+        conn, addr = server_socket.accept()
+        with conn:
+            print(f"Connected by {addr}")
+
+            # Receive signed data
+            data = conn.recv(1024)
+            if data:
+                print(data)
+                print(f"Received data: {data.hex()}")
+
+                # Process and send a response
+                response = b"Data received successfully!"
+                conn.sendall(response)  # Send response to the client
+                print("Response sent.")
 
 def main():
     """
     Main function to generate a DCC for a person based on their identity attributes.
     """
+    start_server()
+
     # Step 1: Define identity attributes
     identity_attributes = [
         Identity_Attribute("password1", "nome", "Marcolino"),
@@ -94,7 +94,7 @@ def main():
     owner_public_key = owner_private_key.public_key()
 
     # Wrap the public key in the PublicKey class
-    public_key_obj = Public_Key(key=owner_public_key, algorithm="RSA-2048")
+    public_key_obj = Public_Key(key=owner_public_key, algorithm=f"RSA-{RSA_KEY_SIZE}")
 
     # Step 3: Generate issuer's certificate and load it
     generate_issuer_certificate()
