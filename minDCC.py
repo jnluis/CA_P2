@@ -32,16 +32,15 @@ class minDCC:
             }
 
         data_to_sign = (
-            "".join(commitment_value for commitment_value in self.commitment_values)
-            .join(label + value + mask for label, (value, mask) in attributes.items())
-            .join(self.owner_public_key.to_pem())
-            .join(self.issuer_signature)
+            "".join(commitment_value for commitment_value in self.commitment_values) +
+            "".join(label + value + mask for label, attr in attributes.items() for value, mask in attr.items())
+            .join(self.owner_public_key.to_pem().decode())
+            .join(self.issuer_signature.signature_value)
         ).encode()
 
-        # Load the private key from PEM
         try:
             private_key = load_pem_private_key(
-                private_key.encode(),  # Convert PEM string to bytes
+                private_key.encode(),
                 password=None,  # No password as Ed448 doesn't support encrypted PEM
                 backend=default_backend()
             )

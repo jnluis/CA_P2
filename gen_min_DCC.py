@@ -50,8 +50,6 @@ def main():
       password = input("Password: ")
       identity_attributes = generate_identity_attributes(password, revealed_attributes)
 
-      print(owner_public_key["key"])
- 
       min_dcc = minDCC(
           commitment_values=commitment_values,
           attributes_digest_description=digest_description,
