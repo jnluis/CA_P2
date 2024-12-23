@@ -4,13 +4,32 @@ from minDCC import minDCC
 from DCC import generate_identity_attributes, Public_Key, Issuer_Signature
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("dcc_path", type=str)
-    parser.add_argument("private_key_path", type=str)
+    parser = argparse.ArgumentParser(
+        description="Process a DCC document and optionally sign it using a private key or a CC from the card reader."
+    )
+    parser.add_argument(
+        "dcc_path",
+        type=str,
+        help="Path to the DCC document (required)."
+    )
+    parser.add_argument(
+        "private_key_path",
+        nargs="?",
+        help=(
+            "Optional path to the private key for signing. "
+            "If not provided, the system will attempt to use a card reader for signing."
+        ),
+        default=None
+    )
 
     args = parser.parse_args()
+
+    if args.private_key_path:
+        print(f"Using private key from: {args.private_key_path}")
+    else:
+        print("No private key path provided. Attempting to use card reader for signing.")
+
 
     try:
         with open(args.dcc_path, "r") as dcc_file:
@@ -19,12 +38,15 @@ def main():
         print(f"Error loading DCC document: {e}")
         return
 
-    try:
-        with open(args.private_key_path, "r") as key_file:
-            owner_private_key = key_file.read()
-    except Exception as e:
-        print(f"Error loading private key: {e}")
-        return
+    if args.private_key_path is not None:
+        try:
+            with open(args.private_key_path, "r") as key_file:
+                owner_private_key = key_file.read()
+        except Exception as e:
+            print(f"Error loading private key: {e}")
+            return
+    else:
+        owner_private_key = None
 
     try:
 

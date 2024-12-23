@@ -71,7 +71,7 @@ class DCC:
     def __post_init__(self):
         if self.issuer_private_key is None:
             raise ValueError("Issuer private key must be provided.")
-        self.sign_attributes(self.issuer_private_key)
+        self.sign_attributes()
 
     def disclose_attributes(self, attribute_names, password):
         """
@@ -102,7 +102,7 @@ class DCC:
                     raise ValueError(f"Commitment value mismatch for attribute: {attr.label}")
         return disclosed
 
-    def sign_attributes(self, private_key: RSAPrivateKey):
+    def sign_attributes(self):
         """
         Sign the commitment values and public key to ensure integrity and ownership.
         :param private_key: RSA Private key for signing.
@@ -112,7 +112,7 @@ class DCC:
             self.owner_public_key.to_pem().decode()
         ).encode()
 
-        signature = private_key.sign(
+        signature = self.issuer_private_key.sign(
             data_to_sign,
             padding.PSS(
                 mgf=padding.MGF1(SHA384()),

@@ -149,7 +149,6 @@ def main():
 
         print("1. Request DCC")
         print("2. Request DCC with CC")
-        print("3. Request min-DCC with CC")
         print("3. Exit")
         choice = input("Enter your choice: ")
 
@@ -179,12 +178,10 @@ def main():
         elif choice == '2':
             pubKeyBytes, attributes =loadCC()
             CC = True
-            # if para se for um gen ou um gen_min
             response = DCC_gen(pubKeyBytes, attributes, password, CC)
             # write in a file in json format
             with open("DCC.json", "w") as f:
                 json.dump(response, f, indent=2)
-            #verify_signature(signature)
             sys.exit(1)
         elif choice == '3':
             break

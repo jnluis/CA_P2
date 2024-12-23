@@ -1,10 +1,19 @@
+from PyKCS11 import *
+from PyKCS11.LowLevel import *
 from dataclasses import dataclass, field, asdict
 from DCC import Public_Key, Signature, Issuer_Signature, DCC
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import (padding)
 import json
 import datetime
+
+lib = '/usr/local/lib/libpteidpkcs11.so'
+pkcs11 = PyKCS11.PyKCS11Lib()
+pkcs11.load(lib)
+slots = pkcs11.getSlotList()
 
 @dataclass
 class minDCC:
@@ -12,17 +21,14 @@ class minDCC:
     attributes_digest_description: str = "SHA-3_512 for pseudo-random mask and SHA-384 for commitment values"
     identity_attributes: set = field(default_factory=set)
     owner_public_key: Public_Key = field(default_factory=Public_Key)
-    owner_private_key: Ed448PrivateKey = None
+    owner_private_key: Ed448PrivateKey | None = None
     issuer_signature: Issuer_Signature = field(default_factory=Issuer_Signature)
     producer_signature: Signature = field(init=False)
 
     def __post_init__(self):
-        if self.owner_private_key is None:
-            raise ValueError("Owner private key must be provided.")
-        self.sign_attributes(self.owner_private_key)
+        self.sign_attributes()
 
-    def sign_attributes(self, private_key: Ed448PrivateKey):
-
+    def sign_attributes(self):
         attributes = dict()
         for attr in self.identity_attributes:
             attributes[attr.label] = {
@@ -37,27 +43,42 @@ class minDCC:
             .join(self.issuer_signature.signature_value)
         ).encode()
 
-        try:
-            private_key = load_pem_private_key(
-                private_key.encode(),
-                password=None,  # No password as Ed448 doesn't support encrypted PEM
-                backend=default_backend()
+        if self.owner_private_key is not None:
+            try:
+                private_key = load_pem_private_key(
+                    private_key.encode(),
+                    password=None,
+                    backend=default_backend()
+                )
+
+                # Ensure the loaded key is Ed448
+                if not isinstance(private_key, Ed448PrivateKey):
+                    raise ValueError("The provided private key is not an Ed448 key.")
+            except Exception as e:
+                raise ValueError(f"Error loading private key: {e}")
+
+            signature = private_key.sign(
+                data_to_sign
             )
 
-            # Ensure the loaded key is Ed448
-            if not isinstance(private_key, Ed448PrivateKey):
-                raise ValueError("The provided private key is not an Ed448 key.")
-        except Exception as e:
-            raise ValueError(f"Error loading private key: {e}")
+            algorithm = "Ed448"
 
-        signature = private_key.sign(
-            data_to_sign
-        )
+        else:
+            for slot in slots:
+                if 'CARTAO DE CIDADAO' in pkcs11.getTokenInfo(slot).label:
+                    session = pkcs11.openSession(slot)
+                    privKey = session.findObjects( [( CKA_CLASS , CKO_PRIVATE_KEY ),(CKA_LABEL, 'CITIZEN AUTHENTICATION KEY')])[0]
+                    signature = bytes(session.sign( privKey,data_to_sign,Mechanism(CKM_SHA1_RSA_PKCS)))
+                    session.closeSession
+                    algorithm = "SHA1_RSA_PKCS"     
+                    break
+            else:
+                raise ValueError("No private key provided for signing.")
 
         self.producer_signature = Signature(
             signature_value=signature.hex(),
             timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            algorithm = "Ed448",
+            algorithm = algorithm,
         )
 
     
@@ -75,7 +96,7 @@ class minDCC:
             .join(owner_public_key["key"])
             .join(issuer_signature["signature_value"])
         ).encode()
-
+        
         owner_public_key = Public_Key(
             load_pem_public_key(owner_public_key["key"].encode()),
             owner_public_key["algorithm"]
@@ -100,10 +121,18 @@ class minDCC:
             if not is_issuer_valid:
                 raise ValueError("Issuer signature is invalid.")
 
-            owner_public_key.key.verify(
-                bytes.fromhex(producer_signature.signature_value),
-                data_to_validate,
-            )
+            if owner_public_key.algorithm == "Ed448":
+                owner_public_key.key.verify(
+                    bytes.fromhex(producer_signature.signature_value),
+                    data_to_validate,
+                )
+            else:
+                owner_public_key.key.verify(
+                    bytes.fromhex(producer_signature.signature_value),
+                    data_to_validate,
+                    padding.PKCS1v15(),
+                    hashes.SHA1()
+                )
             return True
         except Exception:
             return False
