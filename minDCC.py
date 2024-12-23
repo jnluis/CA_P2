@@ -3,7 +3,6 @@ from DCC import Public_Key, Signature, Issuer_Signature, DCC
 from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
 from cryptography.hazmat.backends import default_backend
-import base64
 import json
 import datetime
 
@@ -87,6 +86,12 @@ class minDCC:
             timestamp = issuer_signature["timestamp"],
             algorithm = issuer_signature["algorithm"],
             issuer_certificate = issuer_signature["issuer_certificate"]
+        )
+
+        producer_signature = Signature(
+            signature_value = producer_signature["signature_value"],
+            timestamp = producer_signature["timestamp"],
+            algorithm = producer_signature["algorithm"]
         )
 
         try:
