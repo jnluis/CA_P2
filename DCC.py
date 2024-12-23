@@ -38,7 +38,7 @@ def generate_identity_attributes(password: str, attributes: dict[str, str]) -> s
 @dataclass
 class Public_Key:
     key: Ed448PublicKey = None
-    algorithm: str = "Ed448"
+    algorithm: str = ""
 
     def to_pem(self):
         return self.key.public_bytes(

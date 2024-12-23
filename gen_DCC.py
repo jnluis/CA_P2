@@ -75,8 +75,9 @@ def start_server():
                     attributes = received_data.get("attributes", {})
                     password = received_data.get("password", "")
                     public_key_hex = received_data.get("public_key", "")
+                    CC_used = received_data.get("CC", 0)
 
-                    dcc = process_received_data(attributes, password, public_key_hex)
+                    dcc = process_received_data(attributes, password, public_key_hex, CC_used)
 
                     # Send response
                     data_length = len(dcc)
@@ -89,7 +90,7 @@ def start_server():
                     print(f"Failed to parse JSON: {e}")
                     conn.sendall(b"Invalid JSON format!")
 
-def process_received_data(attributes, password, public_key_hex):
+def process_received_data(attributes, password, public_key_hex, CC_used):
     """
     Process the received attributes and generate the DCC using the provided values.
     """
@@ -103,7 +104,10 @@ def process_received_data(attributes, password, public_key_hex):
     owner_public_key = serialization.load_der_public_key(public_key_bytes)
 
     # Wrap the public key in the PublicKey class
-    public_key_obj = Public_Key(key=owner_public_key, algorithm=f"ED448")
+    if CC_used == 1:
+        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"CC public key algorithm") # TODO: Add the correct algorithm
+    else:
+        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"ED448")
 
     # Step 3: Generate issuer's certificate
     generate_issuer_certificate()

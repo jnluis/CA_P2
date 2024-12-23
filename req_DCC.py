@@ -108,14 +108,15 @@ def verify_signature(signature):
         except:
             print('Verification failed')   
 
-def DCC_gen(pubKeyBytes, attributes, password):
+def DCC_gen(pubKeyBytes, attributes, password,CC=0):
     HOST = '127.0.0.1'  # Server address
     PORT = 65432        # Server port
 
     data = {
         "attributes": attributes,
         "password": password,
-        "public_key": pubKeyBytes.hex()  # Convert binary to hexadecimal string
+        "public_key": pubKeyBytes.hex(),  # Convert binary to hexadecimal string
+        "CC": CC
     }
 
     json_data = json.dumps(data)
@@ -177,9 +178,9 @@ def main():
 
         elif choice == '2':
             pubKeyBytes, attributes =loadCC()
-
+            CC=1
             # if para se for um gen ou um gen_min
-            response = DCC_gen(pubKeyBytes, attributes, password)
+            response = DCC_gen(pubKeyBytes, attributes, password,CC)
             # write in a file in json format
             with open("DCC.json", "w") as f:
                 json.dump(response, f, indent=2)
