@@ -1,2 +1,3 @@
 cryptography
 pykcs11
+pyasn1
