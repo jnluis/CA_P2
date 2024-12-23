@@ -6,6 +6,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 import datetime
 import socket
+import json
 
 issuer_private_key = None  # Global variable to hold the issuer's private key
 RSA_KEY_SIZE = 4096  # Size of the RSA key pair
@@ -66,37 +67,45 @@ def start_server():
             # Receive signed data
             data = conn.recv(1024)
             if data:
-                print(data)
-                print(f"Received data: {data.hex()}")
+                try:
+                    # Decode and parse JSON data
+                    received_data = json.loads(data.decode('utf-8'))
+                    print(f"Received data: {received_data}")
+                    # Extract received values
+                    attributes = received_data.get("attributes", {})
+                    password = received_data.get("password", "")
+                    public_key_hex = received_data.get("public_key", "")
 
-                # Process and send a response
-                response = b"Data received successfully!"
-                conn.sendall(response)  # Send response to the client
-                print("Response sent.")
+                    dcc = process_received_data(attributes, password, public_key_hex)
 
-def main():
+                    # Send response
+                    data_length = len(dcc)
+                    conn.sendall(data_length.to_bytes(4, 'big'))
+
+                    conn.sendall(dcc.encode('utf-8'))
+                    print("Response sent.")
+
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON: {e}")
+                    conn.sendall(b"Invalid JSON format!")
+
+def process_received_data(attributes, password, public_key_hex):
     """
-    Main function to generate a DCC for a person based on their identity attributes.
+    Process the received attributes and generate the DCC using the provided values.
     """
-    start_server()
+    # Step 1: Map attributes into Identity_Attribute objects
+    identity_attributes = []
+    for label, value in attributes.items():
+        identity_attributes.append(Identity_Attribute(password, label, value))
 
-    # Step 1: Define identity attributes
-    identity_attributes = [
-        Identity_Attribute("password1", "nome", "Marcolino"),
-        Identity_Attribute("password1", "data_nascimento", "24/02/1999")
-    ]
-
-    # Step 2: Generate owner's RSA key pair
-    owner_private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-    )
-    owner_public_key = owner_private_key.public_key()
+    # Step 2: Generate the owner's public key from the received public key (hex)
+    public_key_bytes = bytes.fromhex(public_key_hex)  # Convert hex to bytes
+    owner_public_key = serialization.load_der_public_key(public_key_bytes)
 
     # Wrap the public key in the PublicKey class
-    public_key_obj = Public_Key(key=owner_public_key, algorithm=f"RSA-{RSA_KEY_SIZE}")
+    public_key_obj = Public_Key(key=owner_public_key, algorithm=f"ED448")
 
-    # Step 3: Generate issuer's certificate and load it
+    # Step 3: Generate issuer's certificate
     generate_issuer_certificate()
     with open("issuer_certificate.pem", "rb") as f:
         issuer_certificate = f.read().decode("UTF-8")
@@ -109,10 +118,7 @@ def main():
         issuer_certificate=issuer_certificate
     )
 
-    # Step 5: Output the DCC details
-    print("Generated DCC:")
-    print(dcc)
-
+    return dcc.__repr__()
 
 if __name__ == '__main__':
-    main()
+    start_server()

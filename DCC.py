@@ -121,7 +121,7 @@ class DCC:
         self.issuer_signature = Issuer_Signature(
             signature_value=signature.hex(),
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            algorithm="Ed448",
+            algorithm="RSA-4096",
             issuer_certificate=self.issuer_certificate
         )
 

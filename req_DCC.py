@@ -1,17 +1,19 @@
 from PyKCS11 import *
 from PyKCS11.LowLevel import *
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes,serialization
 from cryptography import x509
-from cryptography.hazmat.primitives . serialization import load_der_public_key
-from cryptography.hazmat.primitives . asymmetric import (
-padding , rsa , utils
+from cryptography.hazmat.primitives.serialization import load_der_public_key, Encoding, PublicFormat
+from cryptography.hazmat.primitives.asymmetric import (
+padding , rsa , utils, ed448
 )
 import socket
 from datetime import datetime, timezone
 from pyasn1.codec.der.decoder import decode
 from pyasn1.type.univ import Sequence
 import json
+import sys
+from DCC import generate_identity_attributes
 
 lib = '/usr/local/lib/libpteidpkcs11.so'
 pkcs11 = PyKCS11.PyKCS11Lib()
@@ -41,15 +43,13 @@ def get_birth_date_from_extension(extension):
         print(f"Error decoding subjectDirectoryAttributes: {e}")
         return None
 
-def loadCC_and_sign():
+def loadCC():
     attributes = {} 
     for slot in slots :
         if 'CARTAO DE CIDADAO' in pkcs11.getTokenInfo(slot).label:
             session = pkcs11.openSession(slot)
             privKey = session.findObjects( [(CKA_CLASS , CKO_PRIVATE_KEY ) , ( CKA_LABEL , 'CITIZEN AUTHENTICATION KEY' )] ) [0]
             pubKey = session.findObjects([(CKA_CLASS,CKO_PUBLIC_KEY),( CKA_LABEL , 'CITIZEN AUTHENTICATION KEY')])[0]
-            #signature = bytes( session.sign( privKey , data , Mechanism ( CKM_SHA1_RSA_PKCS ) ))
-           
             cert = session.findObjects([
                 (CKA_CLASS, CKO_CERTIFICATE),
                 (CKA_LABEL, 'CITIZEN AUTHENTICATION CERTIFICATE')  # Label for the authentication certificate
@@ -79,7 +79,16 @@ def loadCC_and_sign():
             attributes['country'] = country
 
             pubKeyDer = session.getAttributeValue(pubKey, [CKA_VALUE], True)[0]
-            pubKeyBytes = bytes(pubKeyDer)  # Convert to bytes
+            pubKeyBytes = bytes(pubKeyDer) 
+            public_key = serialization.load_der_public_key(pubKeyBytes, backend=default_backend())
+
+            with open("public_key.pem", "wb") as pub_file:
+                pub_file.write(
+                    public_key.public_bytes(
+                        encoding=Encoding.PEM,
+                        format=PublicFormat.SubjectPublicKeyInfo  # Standard PEM format for public keys
+                    )
+                )
 
             session.closeSession
             return pubKeyBytes, attributes
@@ -99,7 +108,7 @@ def verify_signature(signature):
         except:
             print('Verification failed')   
 
-def send_signed_data(pubKeyBytes, attributes, password):
+def DCC_gen(pubKeyBytes, attributes, password):
     HOST = '127.0.0.1'  # Server address
     PORT = 65432        # Server port
 
@@ -118,9 +127,20 @@ def send_signed_data(pubKeyBytes, attributes, password):
         client_socket.sendall(json_data.encode('utf-8'))
         print("Signed data sent successfully.")
 
-        # Wait for response from server
-        response = client_socket.recv(1024)
-        print(f"Response from server: {response.decode()}")  # Decode and print response                     
+        data_length = int.from_bytes(client_socket.recv(4), 'big')
+
+        # Receive the actual data
+        received_data = b""
+        while len(received_data) < data_length:
+            chunk = client_socket.recv(1024)  # Receive in chunks of 1024 bytes
+            if not chunk:
+                break
+            received_data += chunk
+
+        # Decode and parse JSON
+        response = json.loads(received_data.decode('utf-8'))
+        print(f"Response from server: {response}")  # Decode and print response   
+        return response                  
 
 def main():
     while True:
@@ -133,15 +153,38 @@ def main():
         choice = input("Enter your choice: ")
 
         if choice == '1':
-            person_name = input("Enter the person's name: ")
-            #dcc = owner.request_dcc(person_name)
-            #print(f"DCC requested: {dcc}")
+            owner_private_key = ed448.Ed448PrivateKey.generate()
+            owner_public_key = owner_private_key.public_key()
+            with open("owner_private_key.pem", "wb") as priv_file:
+                priv_file.write(
+                    owner_private_key.private_bytes(
+                        encoding=Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.NoEncryption()
+                    )
+                )
+                
+            attributes = {
+                    "nome": "Marcolino",
+                    "data_nascimento": "24/02/1999"
+            }
+
+            response = DCC_gen(owner_public_key.public_bytes(encoding=Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo), attributes, password)
+
+            with open("DCC.json", "w") as f:
+                json.dump(response, f, indent=2)
+            sys.exit(0)
+
         elif choice == '2':
-            pubKeyBytes, attributes =loadCC_and_sign()
+            pubKeyBytes, attributes =loadCC()
 
             # if para se for um gen ou um gen_min
-            send_signed_data(pubKeyBytes, attributes, password)
+            response = DCC_gen(pubKeyBytes, attributes, password)
+            # write in a file in json format
+            with open("DCC.json", "w") as f:
+                json.dump(response, f, indent=2)
             #verify_signature(signature)
+            sys.exit(1)
         elif choice == '3':
             break
         else:

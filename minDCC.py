@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field, asdict
 from DCC import Public_Key, Signature, Issuer_Signature, Identity_Attribute, DCC
-
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.hashes import Hash, SHA384, SHA3_512
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
+from cryptography.hazmat.backends import default_backend
+import base64
 import json
 import datetime
 
@@ -13,7 +13,7 @@ class minDCC:
     attributes_digest_description: str = "SHA-3_512 for pseudo-random mask and SHA-384 for commitment values"
     identity_attributes: set = field(default_factory=set)
     owner_public_key: Public_Key = field(default_factory=Public_Key)
-    owner_private_key: Ed25519PrivateKey = None
+    owner_private_key: Ed448PrivateKey = None
     issuer_signature: Issuer_Signature = field(default_factory=Issuer_Signature)
     producer_signature: Signature = field(init=False)
 
@@ -22,13 +22,35 @@ class minDCC:
             raise ValueError("Owner private key must be provided.")
         self.sign_attributes(self.owner_private_key)
 
-    def sign_attributes(self, private_key: Ed25519PrivateKey):
+    def sign_attributes(self, private_key: Ed448PrivateKey):
+
+        attributes = dict()
+        for attr in self.identity_attributes:
+            attributes[attr.label] = {
+                "value": attr.value,
+                "mask": attr._pseudo_random_mask,
+            }
+
         data_to_sign = (
             "".join(commitment_value for commitment_value in self.commitment_values)
-            .join(identity_attribute for identity_attribute in self.identity_attributes)
-            .join(self.owner_public_key)
+            .join(label + value + mask for label, (value, mask) in attributes.items())
+            .join(self.owner_public_key.to_pem())
             .join(self.issuer_signature)
         ).encode()
+
+        # Load the private key from PEM
+        try:
+            private_key = load_pem_private_key(
+                private_key.encode(),  # Convert PEM string to bytes
+                password=None,  # No password as Ed448 doesn't support encrypted PEM
+                backend=default_backend()
+            )
+
+            # Ensure the loaded key is Ed448
+            if not isinstance(private_key, Ed448PrivateKey):
+                raise ValueError("The provided private key is not an Ed448 key.")
+        except Exception as e:
+            raise ValueError(f"Error loading private key: {e}")
 
         signature = private_key.sign(
             data_to_sign
@@ -37,7 +59,7 @@ class minDCC:
         self.producer_signature = Signature(
             signature_value=signature.hex(),
             timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            algorithm = "Ed25519",
+            algorithm = "Ed448",
         )
 
     
