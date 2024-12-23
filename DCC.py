@@ -1,12 +1,15 @@
-from dataclasses import dataclass, field, asdict
-from cryptography.hazmat.primitives.hashes import Hash, SHA384, SHA3_512
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
-from cryptography.hazmat.primitives import serialization
-import json
 import datetime
+import json
+from dataclasses import asdict, dataclass, field
 from typing import Iterable
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from cryptography.hazmat.primitives.hashes import SHA3_512, SHA384, Hash
+from cryptography.x509 import load_pem_x509_certificate
 
 
 @dataclass(frozen=True)
@@ -126,7 +129,7 @@ class DCC:
         )
 
     @staticmethod
-    def validate_signature(owner_public_key: Ed448PublicKey, issuer_signature: Issuer_Signature, commitment_values: Iterable[str]):
+    def validate_signature(owner_public_key: Public_Key, issuer_signature: Issuer_Signature, commitment_values: Iterable[str]):
         """
         Validate the signature over the commitment values and public key.
         :return: True if valid, False otherwise.
@@ -137,7 +140,14 @@ class DCC:
         ).encode()
 
         try:
-            owner_public_key.key.verify(
+            certificate = load_pem_x509_certificate(issuer_signature.issuer_certificate.encode(), backend=default_backend())
+            issuer_public_key = certificate.public_key()
+        except Exception as e:
+            print(f"Error loading issuer certificate: {e}")
+            return False
+
+        try:
+            issuer_public_key.verify(
                 bytes.fromhex(issuer_signature.signature_value),
                 data_to_validate,
                 padding.PSS(

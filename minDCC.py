@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, asdict
-from DCC import Public_Key, Signature, Issuer_Signature, Identity_Attribute, DCC
+from DCC import Public_Key, Signature, Issuer_Signature, DCC
 from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
 from cryptography.hazmat.backends import default_backend
@@ -63,16 +63,38 @@ class minDCC:
 
     
     @staticmethod
-    def validate_signatures(commitment_values: list, identity_attributes: set[Identity_Attribute], owner_public_key: Public_Key, issuer_signature: Issuer_Signature, producer_signature: Signature):
+    def validate_signatures(commitment_values: list, identity_attributes: str, owner_public_key: str, issuer_signature: str, producer_signature: str) -> bool:
+
+        attributes = dict(identity_attributes)
+        issuer_signature = dict(issuer_signature)
+        producer_signature = dict(producer_signature)
+        owner_public_key = dict(owner_public_key)
+
         data_to_validate = (
-            "".join(commitment_value for commitment_value in commitment_values)
-            .join(identity_attribute for identity_attribute in identity_attributes)
-            .join(owner_public_key)
-            .join(issuer_signature)
+            "".join(commitment_value for commitment_value in commitment_values) +
+            "".join(label + value + mask for label, attr in attributes.items() for value, mask in attr.items())
+            .join(owner_public_key["key"])
+            .join(issuer_signature["signature_value"])
         ).encode()
 
+        owner_public_key = Public_Key(
+            load_pem_public_key(owner_public_key["key"].encode()),
+            owner_public_key["algorithm"]
+        )
+
+        issuer_signature = Issuer_Signature(
+            signature_value = issuer_signature["signature_value"],
+            timestamp = issuer_signature["timestamp"],
+            algorithm = issuer_signature["algorithm"],
+            issuer_certificate = issuer_signature["issuer_certificate"]
+        )
+
         try:
-            DCC.validate_signature(owner_public_key, issuer_signature, commitment_values)
+            is_issuer_valid = DCC.validate_signature(owner_public_key, issuer_signature, commitment_values)
+            print("Issuer signature is " + ("valid" if is_issuer_valid else "invalid"))
+            if not is_issuer_valid:
+                raise ValueError("Issuer signature is invalid.")
+
             owner_public_key.key.verify(
                 bytes.fromhex(producer_signature.signature_value),
                 data_to_validate,

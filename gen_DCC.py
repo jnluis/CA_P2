@@ -107,7 +107,7 @@ def process_received_data(attributes, password, public_key_hex, CC_used):
     if CC_used == True:
         public_key_obj = Public_Key(key=owner_public_key, algorithm=f"CC public key algorithm") # TODO: Add the correct algorithm
     else:
-        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"ED448")
+        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"Ed448")
 
     # Step 3: Generate issuer's certificate
     generate_issuer_certificate()

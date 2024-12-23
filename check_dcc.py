@@ -18,7 +18,7 @@ def main():
     is_valid = minDCC.validate_signatures(
         commitment_values=min_dcc["commitment_values"],
         identity_attributes=min_dcc["revealed_identity_attributes"],
-        owner_public_key=min_dcc["owner_public_key"]["key"],
+        owner_public_key=min_dcc["owner_public_key"],
         issuer_signature=min_dcc["issuer_signature"],
         producer_signature=min_dcc["producer_signature"]
     )

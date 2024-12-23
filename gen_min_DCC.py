@@ -58,7 +58,9 @@ def main():
           owner_private_key=owner_private_key,
           issuer_signature=Issuer_Signature(issuer_signature["signature_value"], issuer_signature["timestamp"], issuer_signature["algorithm"], issuer_certificate=issuer_signature["issuer_certificate"])
       )
-      print(min_dcc)
+      
+      with open("min_DCC.json", "w") as f:
+          f.write(min_dcc.__repr__())
     
     except Exception as e:
         print(f"Error generating minDCC: {e}")
