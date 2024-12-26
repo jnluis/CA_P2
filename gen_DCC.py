@@ -64,8 +64,13 @@ def start_server():
         with conn:
             print(f"Connected by {addr}")
 
-            # Receive signed data
-            data = conn.recv(1024)
+            data_length = int.from_bytes(conn.recv(4), 'big')
+            data = b""
+            while len(data) < data_length:
+                chunk = conn.recv(min(1024, data_length - len(data)))
+                if not chunk:
+                    break
+                data += chunk
             if data:
                 try:
                     # Decode and parse JSON data

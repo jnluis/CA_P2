@@ -121,13 +121,14 @@ def DCC_gen(pubKeyBytes, attributes, password, CC = False):
     }
 
     json_data = json.dumps(data)
+    encoded_data = json_data.encode('utf-8')
+    data_length = len(encoded_data)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
         client_socket.connect((HOST, PORT))  # Connect to the server
 
-        # Send signed data
-        client_socket.sendall(json_data.encode('utf-8'))
-        print("Signed data sent successfully.")
+        client_socket.sendall(len(encoded_data).to_bytes(4, 'big'))
+        client_socket.sendall(encoded_data)
 
         data_length = int.from_bytes(client_socket.recv(4), 'big')
 
