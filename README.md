@@ -34,7 +34,7 @@ For this project, 4 applications were developed:
     python3 req_dcc.py
     ```
 
-2. To use ```gen_min.py```, run:
+2. To use ```gen_min_DCC.py```, run:
     ```shell
     python3 gen_min_DCC.py DCC.json owner_private_key.pem
     ```

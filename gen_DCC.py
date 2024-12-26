@@ -104,7 +104,7 @@ def process_received_data(attributes, public_key_hex, CC_used):
 
     # Wrap the public key in the PublicKey class
     if CC_used == True:
-        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"CC public key algorithm") # TODO: Add the correct algorithm
+        public_key_obj = Public_Key(key=owner_public_key, algorithm=f"CC public key algorithm") 
     else:
         public_key_obj = Public_Key(key=owner_public_key, algorithm=f"Ed448")
 
