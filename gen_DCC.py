@@ -73,11 +73,10 @@ def start_server():
                     print(f"Received data: {received_data}")
                     # Extract received values
                     attributes = received_data.get("attributes", {})
-                    password = received_data.get("password", "")
                     public_key_hex = received_data.get("public_key", "")
                     CC_used = received_data.get("CC", False)
 
-                    dcc = process_received_data(attributes, password, public_key_hex, CC_used)
+                    dcc = process_received_data(attributes, public_key_hex, CC_used)
 
                     # Send response
                     data_length = len(dcc)
@@ -90,14 +89,14 @@ def start_server():
                     print(f"Failed to parse JSON: {e}")
                     conn.sendall(b"Invalid JSON format!")
 
-def process_received_data(attributes, password, public_key_hex, CC_used):
+def process_received_data(attributes, public_key_hex, CC_used):
     """
     Process the received attributes and generate the DCC using the provided values.
     """
     # Step 1: Map attributes into Identity_Attribute objects
     identity_attributes = []
-    for label, value in attributes.items():
-        identity_attributes.append(Identity_Attribute(password, label, value))
+    for attribute in attributes:
+        identity_attributes.append(Identity_Attribute( label=attribute["label"], value=attribute["value"], pseudo_random_mask=attribute["pseudo_random_mask"], digest_description=attribute["digest_description"]))
 
     # Step 2: Generate the owner's public key from the received public key (hex)
     public_key_bytes = bytes.fromhex(public_key_hex)  # Convert hex to bytes

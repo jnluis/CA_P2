@@ -14,19 +14,15 @@ from cryptography.x509 import load_pem_x509_certificate
 
 @dataclass(frozen=True)
 class Identity_Attribute:
-    _password: str = field(repr=False, compare=False)
-    _pseudo_random_mask: str = field(init=False)
+    pseudo_random_mask: str = ""
     label: str = ""
     value: str = ""
     commitment_value: str = field(init=False)
+    digest_description: str = ""
 
     def __post_init__(self):
-        hash = Hash(SHA3_512())
-        hash.update((self.label + self._password).encode())
-        object.__setattr__(self, '_pseudo_random_mask', hash.finalize().hex())
-
         hash = Hash(SHA384())
-        hash.update((self.label + self.value + self._pseudo_random_mask).encode())
+        hash.update((self.label + self.value + self.pseudo_random_mask).encode())
         object.__setattr__(self, 'commitment_value', hash.finalize().hex())
 
     def __hash__(self):
@@ -35,7 +31,11 @@ class Identity_Attribute:
 def generate_identity_attributes(password: str, attributes: dict[str, str]) -> set[Identity_Attribute]:
     identity_attributes = set()
     for label, value in attributes.items():
-        identity_attributes.add(Identity_Attribute(password, label, value))
+        hash = Hash(SHA3_512())
+        hash.update((label + password).encode())
+        pseudo_random_mask = hash.finalize().hex()
+
+        identity_attributes.add(Identity_Attribute(pseudo_random_mask, label, value,digest_description="SHA-3_512 for pseudo-random mask and SHA-384 for commitment value"))
     return identity_attributes
 
 @dataclass

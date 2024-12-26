@@ -112,9 +112,10 @@ def DCC_gen(pubKeyBytes, attributes, password, CC = False):
     HOST = '127.0.0.1'  # Server address
     PORT = 65432        # Server port
 
+    attributes= generate_identity_attributes(password, attributes)
+
     data = {
-        "attributes": attributes,
-        "password": password,
+        "attributes": [{"pseudo_random_mask" : attr.pseudo_random_mask, "label": attr.label, "value": attr.value, "digest_description": attr.digest_description} for attr in attributes],
         "public_key": pubKeyBytes.hex(),  # Convert binary to hexadecimal string
         "CC": CC
     }

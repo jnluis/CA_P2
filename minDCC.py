@@ -33,7 +33,7 @@ class minDCC:
         for attr in self.identity_attributes:
             attributes[attr.label] = {
                 "value": attr.value,
-                "mask": attr._pseudo_random_mask,
+                "mask": attr.pseudo_random_mask,
             }
 
         data_to_sign = (
@@ -46,7 +46,7 @@ class minDCC:
         if self.owner_private_key is not None:
             try:
                 private_key = load_pem_private_key(
-                    private_key.encode(),
+                    self.owner_private_key.encode(),
                     password=None,
                     backend=default_backend()
                 )
@@ -143,7 +143,7 @@ class minDCC:
         for attr in self.identity_attributes:
             attributes[attr.label] = {
                 "value": attr.value,
-                "mask": attr._pseudo_random_mask,
+                "mask": attr.pseudo_random_mask,
             }
         
         return json.dumps({

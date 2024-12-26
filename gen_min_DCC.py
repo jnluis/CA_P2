@@ -71,6 +71,9 @@ def main():
 
       password = input("Password: ")
       identity_attributes = generate_identity_attributes(password, revealed_attributes)
+      for attribute in identity_attributes:
+        if attribute.commitment_value not in commitment_values:
+          raise ValueError("Generated commitment value does not match the DCC document.")
 
       min_dcc = minDCC(
           commitment_values=commitment_values,
