@@ -74,12 +74,6 @@ class DCC:
         self.sign_attributes()
 
     def disclose_attributes(self, attribute_names, password):
-        """
-        Disclose a subset of attributes and provide their proof of correctness.
-        :param attribute_names: List of attribute labels to disclose.
-        :param password: Password used to generate pseudo-random masks.
-        :return: List of disclosed attributes with their proofs.
-        """
         disclosed = []
         for attr in self.identity_attributes:
             if attr.label in attribute_names:
@@ -103,10 +97,6 @@ class DCC:
         return disclosed
 
     def sign_attributes(self):
-        """
-        Sign the commitment values and public key to ensure integrity and ownership.
-        :param private_key: RSA Private key for signing.
-        """
         data_to_sign = (
             "".join(attr.commitment_value for attr in self.identity_attributes) +
             self.owner_public_key.to_pem().decode()
@@ -130,10 +120,6 @@ class DCC:
 
     @staticmethod
     def validate_signature(owner_public_key: Public_Key, issuer_signature: Issuer_Signature, commitment_values: Iterable[str]):
-        """
-        Validate the signature over the commitment values and public key.
-        :return: True if valid, False otherwise.
-        """
         data_to_validate = (
             "".join(commitment_values) +
             owner_public_key.to_pem().decode()
@@ -161,10 +147,6 @@ class DCC:
             return False
 
     def __repr__(self):
-        """
-        Convert the DCC object into a JSON serializable dictionary.
-        """
-        # Convert identity attributes to a list of dictionaries
         attributes = [
             {"label": attr.label, "value": attr.value, "commitment_value": attr.commitment_value}
             for attr in self.identity_attributes
