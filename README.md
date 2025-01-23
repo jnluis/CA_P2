@@ -2,6 +2,8 @@
 
 ### Academic Year: 2024/25
 
+### Grade: 17.7
+
 ## Project 2 - Selective Identity Disclosure (SID)
 
 This project implements a Selective Identity Disclosure (SID) system that allows users to securely share specific identity attributes from their Digital Citizen Card (DCC) while maintaining privacy and proving ownership. The system enables users to choose which personal information they want to disclose, ensuring that only necessary data is shared with validators.
